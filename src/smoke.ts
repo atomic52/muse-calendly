@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { isoRangeDays } from "./smokeWindow.js";
 
 type Json = Record<string, unknown>;
 
@@ -134,12 +135,6 @@ async function call(
 function get(obj: unknown, key: string): unknown {
   if (obj && typeof obj === "object" && key in (obj as Json)) return (obj as Json)[key];
   return undefined;
-}
-
-function isoRangeDays(days: number): { start: string; end: string } {
-  const start = new Date();
-  const end = new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
-  return { start: start.toISOString(), end: end.toISOString() };
 }
 
 function lastPathSegment(uri: string): string {
