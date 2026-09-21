@@ -3,7 +3,7 @@
   "info": {
     "title": "Calendly Connector (Muse, Personal Access Token)",
     "version": "1.0.0",
-    "description": "Curated Calendly API surface for a Meta Muse custom connector.\n\nAuthentication: send `Authorization: Bearer <Calendly Personal Access Token>`.\nAll operations below use the `personal_access_token` scheme.\n\nSafe usage for agents:\n- Read first: resolve event types, then availability, then confirm the chosen\n  time and invitee with the user before calling POST /invitees.\n- POST /invitees requires a paid Calendly plan and is rate limited to\n  10/min, 50/hr, 100/day on paid non-enterprise plans.\n- POST /invitees is NOT idempotent: a retried request creates a duplicate\n  meeting. Never retry it blindly; check scheduled events first.\n- Treat POST /scheduled_events/{uuid}/cancellation as destructive; confirm with\n  the user before calling it.\n- Send `start_time`/`end_time` as UTC ISO-8601 with a trailing Z.\n- Availability windows cannot span more than 31 days per request."
+    "description": "Curated Calendly API surface for a Meta Muse custom connector.\n\nAuthentication: send `Authorization: Bearer <Calendly Personal Access Token>`.\nAll operations below use the `bearerAuth` scheme.\n\nSafe usage for agents:\n- Read first: resolve event types, then availability, then confirm the chosen\n  time and invitee with the user before calling POST /invitees.\n- POST /invitees requires a paid Calendly plan and is rate limited to\n  10/min, 50/hr, 100/day on paid non-enterprise plans.\n- POST /invitees is NOT idempotent: a retried request creates a duplicate\n  meeting. Never retry it blindly; check scheduled events first.\n- Treat POST /scheduled_events/{uuid}/cancellation as destructive; confirm with\n  the user before calling it.\n- Send `start_time`/`end_time` as UTC ISO-8601 with a trailing Z.\n- Availability windows cannot span more than 31 days per request."
   },
   "servers": [
     {
@@ -13,7 +13,7 @@
   ],
   "security": [
     {
-      "personal_access_token": []
+      "bearerAuth": []
     }
   ],
   "tags": [
@@ -102,7 +102,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -180,7 +180,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -338,7 +338,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -425,7 +425,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -534,7 +534,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -644,7 +644,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -822,7 +822,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -900,7 +900,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -1037,7 +1037,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -1134,7 +1134,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -1260,7 +1260,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -1365,7 +1365,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -1472,7 +1472,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -1615,7 +1615,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -1704,7 +1704,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -1793,7 +1793,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -1881,7 +1881,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -1998,7 +1998,7 @@
         },
         "security": [
           {
-            "personal_access_token": []
+            "bearerAuth": []
           }
         ]
       }
@@ -18669,10 +18669,11 @@
       }
     },
     "securitySchemes": {
-      "personal_access_token": {
+      "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Calendly Personal Access Token."
+        "bearerFormat": "PAT",
+        "description": "Calendly Personal Access Token. Send it as Authorization: Bearer <token>."
       }
     }
   }

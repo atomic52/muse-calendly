@@ -8,7 +8,7 @@ import { dirname, resolve } from "node:path";
  * Why: Calendly's public spec marks 62 of 63 operations as `oauth2`, even though
  * it also declares a `personal_access_token` bearer scheme. Muse custom
  * connectors handle bearer tokens directly, so this script trims the spec to a
- * safe scheduling surface and forces the PAT scheme.
+ * safe scheduling surface and forces the bearer PAT scheme.
  */
 
 const SOURCE_URL =
@@ -40,7 +40,7 @@ const DESCRIPTION = [
   "Curated Calendly API surface for a Meta Muse custom connector.",
   "",
   "Authentication: send `Authorization: Bearer <Calendly Personal Access Token>`.",
-  "All operations below use the `personal_access_token` scheme.",
+  "All operations below use the `bearerAuth` scheme.",
   "",
   "Safe usage for agents:",
   "- Read first: resolve event types, then availability, then confirm the chosen",
@@ -90,7 +90,7 @@ async function main(): Promise<void> {
       const lower = key.toLowerCase() as Method;
       if (methods.includes(lower)) {
         const op = { ...(value as Record<string, unknown>) };
-        op.security = [{ personal_access_token: [] }];
+        op.security = [{ bearerAuth: [] }];
         filtered[key] = op;
         keptOps += 1;
       } else if (["parameters", "summary", "description"].includes(key)) {
@@ -110,10 +110,11 @@ async function main(): Promise<void> {
 
   const components = structuredClone(source.components ?? {});
   components.securitySchemes = {
-    personal_access_token: {
+    bearerAuth: {
       type: "http",
       scheme: "bearer",
-      description: "Calendly Personal Access Token.",
+      bearerFormat: "PAT",
+      description: "Calendly Personal Access Token. Send it as Authorization: Bearer <token>.",
     },
   };
 
@@ -125,7 +126,7 @@ async function main(): Promise<void> {
       description: DESCRIPTION,
     },
     servers: [{ url: "https://api.calendly.com", description: "Calendly API v2" }],
-    security: [{ personal_access_token: [] }],
+    security: [{ bearerAuth: [] }],
     tags: (source.tags ?? []).filter((t) => usedTags.has(t.name as string)),
     paths: keptPaths,
     components,
