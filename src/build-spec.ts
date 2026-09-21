@@ -26,10 +26,6 @@ const ALLOWED: Record<string, string[]> = {
   "/scheduled_events/{uuid}": ["get"],
   "/scheduled_events/{uuid}/invitees": ["get"],
   "/scheduled_events/{event_uuid}/invitees/{invitee_uuid}": ["get"],
-  "/invitees": ["post"],
-  "/scheduled_events/{uuid}/cancellation": ["post"],
-  "/scheduling_links": ["post"],
-  "/shares": ["post"],
   "/locations": ["get"],
   "/user_availability_schedules": ["get"],
   "/user_availability_schedules/{uuid}": ["get"],
@@ -44,11 +40,9 @@ const DESCRIPTION = [
   "",
   "Safe usage for agents:",
   "- Read first: resolve event types, then availability, then confirm with the user before any write.",
-  "- `POST /invitees` requires a paid Calendly plan and is rate limited to 10/min, 50/hr, 100/day.",
-  "- Treat `POST /scheduled_events/{uuid}/cancellation` as destructive and confirm before calling.",
+  "- This direct PAT surface is read-only; use the connector bridge for writes.",
   "- Send `start_time`/`end_time` as UTC ISO-8601 with a trailing Z.",
   "- Availability windows cannot span more than 31 days per request.",
-  "- Do not retry writes blindly; repeated `POST /invitees` calls create duplicate bookings.",
 ].join("\n");
 
 type Method = "get" | "post" | "put" | "patch" | "delete";

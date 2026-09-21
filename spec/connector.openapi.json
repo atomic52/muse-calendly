@@ -1,0 +1,844 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Calendly Connector for Muse",
+    "version": "0.2.0",
+    "description": "Scheduling via Calendly, exposed for a Meta Muse custom connector.\n\nAuth: send `Authorization: Bearer <connector key>`. The connector key is issued\nonce when Calendly is connected and must be pasted into Muse's secure credential\nstore, never into chat.\n\nGuidance for agents:\n- Resolve event types, then availability, then confirm with the user before booking.\n- Send `Idempotency-Key` on `POST /v1/bookings` so retries do not create duplicates.\n- Cancellation is destructive; confirm with the user first.\n- Times are UTC ISO-8601 with a trailing Z."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8787",
+      "description": "Connector bridge"
+    }
+  ],
+  "security": [
+    {
+      "connectorKey": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "account"
+    },
+    {
+      "name": "scheduling"
+    },
+    {
+      "name": "bookings"
+    },
+    {
+      "name": "audit"
+    }
+  ],
+  "paths": {
+    "/v1/me": {
+      "get": {
+        "tags": [
+          "account"
+        ],
+        "operationId": "get_account",
+        "summary": "Get the connected Calendly account and connector status.",
+        "responses": {
+          "200": {
+            "description": "Account details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/event-types": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "operationId": "list_event_types",
+        "summary": "List bookable meeting types.",
+        "responses": {
+          "200": {
+            "description": "Event types.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "eventTypes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/EventType"
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "eventTypes"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/event-types/{uuid}/availability": {
+      "get": {
+        "tags": [
+          "scheduling"
+        ],
+        "operationId": "get_availability",
+        "summary": "List open time slots for a meeting type.",
+        "parameters": [
+          {
+            "name": "uuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "description": "ISO-8601 UTC. Defaults to now.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "description": "ISO-8601 UTC. Defaults to start + 7 days. Window max 31 days.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Availability.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "eventType": {
+                      "type": "string"
+                    },
+                    "startTime": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "endTime": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "slots": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AvailabilitySlot"
+                      }
+                    }
+                  },
+                  "required": [
+                    "eventType",
+                    "slots"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/bookings": {
+      "get": {
+        "tags": [
+          "bookings"
+        ],
+        "operationId": "list_bookings",
+        "summary": "List scheduled meetings.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "canceled"
+              ]
+            }
+          },
+          {
+            "name": "min_start_time",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "max_start_time",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "page_token",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bookings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bookings": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Booking"
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "bookings"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "bookings"
+        ],
+        "operationId": "create_booking",
+        "summary": "Book a meeting. Provide an Idempotency-Key to make retries safe.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Unique key per intended booking. Reusing a key returns the original result instead of creating a duplicate.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_type": {
+                    "type": "string",
+                    "description": "Event type URI from list_event_types."
+                  },
+                  "start_time": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "invitee": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "email": {
+                        "type": "string",
+                        "format": "email"
+                      },
+                      "timezone": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "email"
+                    ]
+                  },
+                  "event_guests": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "email"
+                    }
+                  },
+                  "location": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string"
+                      },
+                      "location": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ]
+                  },
+                  "questions_and_answers": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "question": {
+                          "type": "string"
+                        },
+                        "answer": {
+                          "type": "string"
+                        },
+                        "position": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "question",
+                        "answer"
+                      ]
+                    }
+                  },
+                  "tracking": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "event_type",
+                  "start_time",
+                  "invitee"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent replay of a previous booking.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Booked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/bookings/{uuid}/cancel": {
+      "post": {
+        "tags": [
+          "bookings"
+        ],
+        "operationId": "cancel_booking",
+        "summary": "Cancel a scheduled meeting. Destructive; confirm with the user first.",
+        "parameters": [
+          {
+            "name": "uuid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cancelled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "canceled": {
+                      "type": "boolean"
+                    },
+                    "event": {
+                      "type": "object",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "canceled"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/scheduling-links": {
+      "post": {
+        "tags": [
+          "scheduling"
+        ],
+        "operationId": "create_scheduling_link",
+        "summary": "Create a single-use scheduling link for a meeting type.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_type": {
+                    "type": "string"
+                  },
+                  "max_event_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 1
+                  }
+                },
+                "required": [
+                  "event_type"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Link created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bookingUrl": {
+                      "type": "string"
+                    },
+                    "owner": {
+                      "type": "string"
+                    },
+                    "ownerType": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "bookingUrl"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/audit": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "operationId": "list_audit_events",
+        "summary": "List actions Muse has taken through this connector.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit events, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "events": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditEvent"
+                      }
+                    }
+                  },
+                  "required": [
+                    "events"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "connectorKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Connector key issued when Calendly is connected."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {}
+            },
+            "required": [
+              "code",
+              "message"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "Account": {
+        "type": "object",
+        "properties": {
+          "connection": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "needs_reconnect"
+                ]
+              },
+              "ownerName": {
+                "type": "string"
+              },
+              "ownerEmail": {
+                "type": "string"
+              },
+              "timezone": {
+                "type": "string"
+              },
+              "connectedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "scheduling": {
+            "type": "object",
+            "properties": {
+              "uri": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "email": {
+                "type": "string"
+              },
+              "timezone": {
+                "type": "string"
+              },
+              "schedulingUrl": {
+                "type": "string"
+              },
+              "organization": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "required": [
+          "connection",
+          "scheduling"
+        ]
+      },
+      "EventType": {
+        "type": "object",
+        "properties": {
+          "uri": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "duration": {
+            "type": "integer"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "schedulingUrl": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "uri",
+          "id",
+          "name"
+        ]
+      },
+      "AvailabilitySlot": {
+        "type": "object",
+        "properties": {
+          "startTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "inviteesRemaining": {
+            "type": "integer"
+          },
+          "schedulingUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "startTime",
+          "status"
+        ]
+      },
+      "Booking": {
+        "type": "object",
+        "properties": {
+          "uri": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "startTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "invitees": {
+            "type": "object",
+            "nullable": true
+          },
+          "location": {
+            "type": "object",
+            "nullable": true
+          }
+        },
+        "required": [
+          "uri",
+          "id"
+        ]
+      },
+      "BookingResult": {
+        "type": "object",
+        "properties": {
+          "booking": {
+            "type": "object",
+            "properties": {
+              "inviteeUri": {
+                "type": "string"
+              },
+              "eventUri": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "startTime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "endTime": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "cancelUrl": {
+                "type": "string"
+              },
+              "rescheduleUrl": {
+                "type": "string"
+              }
+            }
+          },
+          "idempotentReplay": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "booking",
+          "idempotentReplay"
+        ]
+      },
+      "AuditEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "success",
+              "error"
+            ]
+          },
+          "status": {
+            "type": "integer"
+          },
+          "latencyMs": {
+            "type": "integer"
+          },
+          "at": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Error response.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  }
+}

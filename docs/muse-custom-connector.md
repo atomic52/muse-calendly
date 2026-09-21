@@ -19,8 +19,6 @@ Meta. Treat the Muse side as volatile.
    - `event_types:read`
    - `availability:read`
    - `scheduled_events:read`
-   - `scheduled_events:write` (only if you want Muse to book/cancel)
-   - `scheduling_links:write` (only for one-time links)
 4. Copy the token. Calendly does not store or show it again.
 
 Put the token in a local `.env` (never in git) and run the smoke test first:
@@ -39,7 +37,7 @@ Expected: `GET /users/me`, `GET /event_types`, and
 - `POST /invitees` (booking) requires a **paid Calendly plan**; reads work before
   that is available.
 
-### Optional: booking test (writes)
+### Optional: provider booking test (writes)
 
 Once a paid plan is available, exercise `POST /invitees` end to end. It is
 opt-in and self-cleaning by default:
@@ -66,6 +64,10 @@ Flags and env:
 
 Booking is **not idempotent**; run it once at a time and confirm no duplicate
 meetings remain.
+
+This smoke test calls Calendly directly for provider verification. The curated
+PAT connector spec below is read-only and does not expose these write operations.
+Use the connector bridge for Muse booking, cancellation, and scheduling links.
 
 ---
 
@@ -146,12 +148,9 @@ The curated spec exposes:
 | `GET /event_type_memberships` | hosts for an event type |
 | `GET /scheduled_events`, `GET /scheduled_events/{uuid}` | upcoming meetings |
 | `GET /scheduled_events/{uuid}/invitees` | meeting attendees |
-| `POST /invitees` | book (paid plan, rate limited) |
-| `POST /scheduled_events/{uuid}/cancellation` | cancel (destructive) |
-| `POST /scheduling_links`, `POST /shares` | one-off / custom links |
 | `GET /locations`, availability, busy times | scheduling context |
 
-Everything else (contacts, organizations, notetaker, routing, data compliance,
+Everything else (booking, cancellation, links, contacts, organizations, notetaker, routing, data compliance,
 webhooks) is excluded on purpose.
 
 ---
@@ -161,15 +160,19 @@ webhooks) is excluded on purpose.
 - Keep Muse approvals on **"Ask for some actions"** or **"Always ask"**. Booking
   and cancellation are writes; leave them gated.
 - Never paste the PAT into chat. Use the secure credential prompt only.
-- Booking (`POST /invitees`) is **not idempotent**. If Muse retries, you get
-  duplicate meetings. Until a bridge adds idempotency keys, verify one booking at
-  a time.
+- The direct PAT spec is read-only. The bridge owns booking and supplies
+  idempotency, audit, and rate-limit controls for writes.
 - Calendly create-invitee limits: 10/min, 50/hr, 100/day (paid non-enterprise).
 - Refresh tokens are irrelevant for PATs, but PATs can be revoked; the smoke test
   is your revocation check.
 
-## 5. When to graduate to the bridge (next phase)
+## 5. When to graduate to the bridge (Phase 2, built)
 
-Move to a thin Node/TS bridge when you need: real OAuth for other users,
-idempotent booking, rotating-refresh handling, per-user rate limits, audit trails,
-or a directory submission. That bridge is the next milestone, not this one.
+The zero-code path uses a personal token for one account. Move to the bridge
+([`docs/bridge.md`](bridge.md)) when you need: OAuth for other users, idempotent
+booking, rotating-refresh handling, per-user rate limits, audit trails, or a
+directory submission.
+
+With the bridge, Muse instead points at the bridge's own spec
+(`${BRIDGE_PUBLIC_URL}/openapi.json`) and uses a connector key issued at the end
+of the connect flow.
