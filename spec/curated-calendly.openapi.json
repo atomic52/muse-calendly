@@ -3,7 +3,7 @@
   "info": {
     "title": "Calendly Connector (Muse, Personal Access Token)",
     "version": "1.0.0",
-    "description": "Curated Calendly API surface for a Meta Muse custom connector.\n\nAuthentication: send `Authorization: Bearer <Calendly Personal Access Token>`.\nAll operations below use the `personal_access_token` scheme.\n\nSafe usage for agents:\n- Read first: resolve event types, then availability, then confirm with the user before any write.\n- This direct PAT surface is read-only; use the connector bridge for writes.\n- Send `start_time`/`end_time` as UTC ISO-8601 with a trailing Z.\n- Availability windows cannot span more than 31 days per request.\n- Do not retry writes blindly; repeated `POST /invitees` calls create duplicate bookings."
+    "description": "Curated Calendly API surface for a Meta Muse custom connector.\n\nAuthentication: send `Authorization: Bearer <Calendly Personal Access Token>`.\nAll operations below use the `personal_access_token` scheme.\n\nSafe usage for agents:\n- Read first: resolve event types, then availability, then confirm the chosen\n  time and invitee with the user before calling POST /invitees.\n- POST /invitees requires a paid Calendly plan and is rate limited to\n  10/min, 50/hr, 100/day on paid non-enterprise plans.\n- POST /invitees is NOT idempotent: a retried request creates a duplicate\n  meeting. Never retry it blindly; check scheduled events first.\n- Treat POST /scheduled_events/{uuid}/cancellation as destructive; confirm with\n  the user before calling it.\n- Send `start_time`/`end_time` as UTC ISO-8601 with a trailing Z.\n- Availability windows cannot span more than 31 days per request."
   },
   "servers": [
     {
@@ -28,6 +28,12 @@
     },
     {
       "name": "scheduledEvents"
+    },
+    {
+      "name": "schedulingLinks"
+    },
+    {
+      "name": "Shares"
     },
     {
       "name": "Users"
@@ -1122,6 +1128,487 @@
                 "schema": {
                   "$ref": "#/components/schemas/Get-scheduled-event-inviteesRequestInternalServerError"
                 }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "personal_access_token": []
+          }
+        ]
+      }
+    },
+    "/invitees": {
+      "post": {
+        "operationId": "scheduledEvents_create-event-invitee",
+        "summary": "Create Event Invitee (Scheduling API)",
+        "description": "Creates a new booking for an event invitee. Use this endpoint to book an invitee directly from your app without redirects, iframes, or Calendly-hosted UI.\n\nStandard notifications, calendar invites, reschedules, and workflows run as if booked via the Calendly UI.\n\n**NOTE:**\n* Access to this endpoint is limited to Calendly users on paid plans (Standard and above). Users on the Free plan will receive a 403 Forbidden response.\n\n<Info title=\"Required scopes\">\n> `scheduled_events:write`\n</Info>",
+        "tags": [
+          "scheduledEvents"
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/scheduledEvents_create-event-invitee_Response_201"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request is not valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Post-inviteeRequestBadRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cannot authenticate caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Post-inviteeRequestUnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller not authorized to perform this action or insufficient scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Post-inviteeRequestForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Requested resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Post-inviteeRequestNotFoundError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An error has occurred on the server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Post-inviteeRequestInternalServerError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_type": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Canonical reference (unique identifier) for the event type being scheduled "
+                  },
+                  "start_time": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "The start time in UTC of the scheduled event"
+                  },
+                  "invitee": {
+                    "$ref": "#/components/schemas/InviteesPostRequestBodyContentApplicationJsonSchemaInvitee"
+                  },
+                  "location": {
+                    "$ref": "#/components/schemas/InviteeLocation"
+                  },
+                  "questions_and_answers": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/InviteeQuestionAndAnswer"
+                    }
+                  },
+                  "tracking": {
+                    "$ref": "#/components/schemas/InviteeTracking"
+                  },
+                  "event_guests": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "email"
+                    },
+                    "description": "Emails of invitee guests. Max 10."
+                  }
+                },
+                "required": [
+                  "event_type",
+                  "start_time",
+                  "invitee"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "personal_access_token": []
+          }
+        ]
+      }
+    },
+    "/scheduled_events/{uuid}/cancellation": {
+      "post": {
+        "operationId": "scheduledEvents_create-scheduled-event-cancellation",
+        "summary": "Cancel Event",
+        "description": "Cancels specified event.\n\n<Info title=\"Required scopes\">\n> `scheduled_events:write`\n</Info>",
+        "tags": [
+          "scheduledEvents"
+        ],
+        "parameters": [
+          {
+            "name": "uuid",
+            "in": "path",
+            "description": "The event's unique indentifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/scheduledEvents_create-scheduled-event-cancellation_Response_201"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request is not valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Create-scheduled-event-cancellationRequestBadRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cannot authenticate caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Create-scheduled-event-cancellationRequestUnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission Denied or insufficient scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Create-scheduled-event-cancellationRequestForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Requested resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Create-scheduled-event-cancellationRequestNotFoundError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An error has occurred on the server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Create-scheduled-event-cancellationRequestInternalServerError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "Optional cancellation reason.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 10000,
+                    "description": "Reason for cancellation"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "personal_access_token": []
+          }
+        ]
+      }
+    },
+    "/scheduling_links": {
+      "post": {
+        "operationId": "schedulingLinks_create-scheduling-link",
+        "summary": "Create Single-Use Scheduling Link",
+        "description": "Creates a single-use scheduling link.\n\n<Info title=\"Required scopes\">\n> `scheduling_links:write`\n</Info>",
+        "tags": [
+          "schedulingLinks"
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/schedulingLinks_create-scheduling-link_Response_201"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request is not valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Create-scheduling-linkRequestBadRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cannot authenticate caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Create-scheduling-linkRequestUnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or insufficient scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Create-scheduling-linkRequestForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Requested resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Create-scheduling-linkRequestNotFoundError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An error has occurred on the server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Create-scheduling-linkRequestInternalServerError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "max_event_count": {
+                    "$ref": "#/components/schemas/SchedulingLinksPostRequestBodyContentApplicationJsonSchemaMaxEventCount",
+                    "description": "The max number of events that can be scheduled using this scheduling link."
+                  },
+                  "owner": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "A link to the resource that owns this Scheduling Link (currently, this is always an Event Type)"
+                  },
+                  "owner_type": {
+                    "$ref": "#/components/schemas/SchedulingLinksPostRequestBodyContentApplicationJsonSchemaOwnerType",
+                    "description": "Resource type (currently, this is always EventType)"
+                  }
+                },
+                "required": [
+                  "max_event_count",
+                  "owner",
+                  "owner_type"
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "personal_access_token": []
+          }
+        ]
+      }
+    },
+    "/shares": {
+      "post": {
+        "operationId": "shares_create-share",
+        "summary": "Create Share",
+        "description": "Endpoint for our [Customize Once and Share](https://calendly.com/help/how-to-create-a-single-use-link) feature. This allows you to customize events for a specific invitee without needing to make an entirely new event type.\n***This feature is only available for one-on-one event types.***\n**Note: Any parameter which is not provided in the request body will be copied from the target event type.**\n\n<Info title=\"Required scopes\">\n> `shares:write`\n</Info>",
+        "tags": [
+          "Shares"
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/shares_create-share_Response_201"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request is not valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Create-shareRequestBadRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cannot authenticate caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Create-shareRequestUnauthorizedError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or insufficient scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Create-shareRequestForbiddenError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Requested resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Create-shareRequestNotFoundError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Any type"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event_type": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 55
+                  },
+                  "duration": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 720,
+                    "description": "Must be one of the provided duration options. If duration options aren't provided then duration must be one of the duration options inherited from the event type."
+                  },
+                  "duration_options": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "A maximum of 4 unique options is allowed. Each option must be >= 1 and <= 720."
+                  },
+                  "period_type": {
+                    "$ref": "#/components/schemas/SharesPostRequestBodyContentApplicationJsonSchemaPeriodType"
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "is required when `period_type` is 'fixed'\nFormat: `YYYY-MM-DD`"
+                  },
+                  "end_date": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "is required when `period_type` is 'fixed'\nFormat: `YYYY-MM-DD`"
+                  },
+                  "max_booking_time": {
+                    "type": "integer",
+                    "description": "is required when `period_type` is 'moving' or 'available_moving'"
+                  },
+                  "hide_location": {
+                    "type": "boolean",
+                    "description": "determines if a location is hidden until invitee books a spot, only respected when there is a single custom location configured"
+                  },
+                  "location_configurations": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/SharesPostRequestBodyContentApplicationJsonSchemaLocationConfigurationsItems"
+                    }
+                  },
+                  "availability_rule": {
+                    "$ref": "#/components/schemas/SharesPostRequestBodyContentApplicationJsonSchemaAvailabilityRule"
+                  }
+                },
+                "required": [
+                  "event_type"
+                ]
               }
             }
           }

@@ -14,11 +14,14 @@ Meta. Treat the Muse side as volatile.
 1. Log in to Calendly.
 2. Go to **Integrations -> API & Webhooks**:
    <https://calendly.com/integrations/api_webhooks>
-3. Create a token and select **only** these scopes:
+3. Create a token and select these scopes:
    - `users:read`
    - `event_types:read`
    - `availability:read`
    - `scheduled_events:read`
+   - `scheduled_events:write` (required to book or cancel)
+   - `scheduling_links:write` (required to create scheduling links)
+   Request only what you need: omit the two `write` scopes for a read-only token.
 4. Copy the token. Calendly does not store or show it again.
 
 Put the token in a local `.env` (never in git) and run the smoke test first:
@@ -66,8 +69,10 @@ Booking is **not idempotent**; run it once at a time and confirm no duplicate
 meetings remain.
 
 This smoke test calls Calendly directly for provider verification. The curated
-PAT connector spec below is read-only and does not expose these write operations.
-Use the connector bridge for Muse booking, cancellation, and scheduling links.
+PAT connector spec below also exposes these write operations, so Muse can book,
+cancel, and create scheduling links. Because the direct PAT surface has no
+server-side idempotency, booking only works safely with approvals on and no
+blind retries (see the guardrails below).
 
 ---
 
@@ -92,7 +97,9 @@ Personal Access Token into the secure credential prompt and never into this chat
 
 Do not book, cancel, reschedule, or modify anything yet. First call GET /users/me,
 then GET /event_types using my organization URI from that response. Then list the
-read-only operations you found and wait for my instruction.
+operations you found and wait for my instruction. When I later ask you to book,
+confirm the slot and invitee with me first, and never retry POST /invitees
+blindly because it is not idempotent.
 
 If the spec asks for OAuth instead of a bearer token, stop and tell me before
 doing anything else.
@@ -135,7 +142,9 @@ Personal Access Token into the secure credential prompt and never into this chat
 
 Do not book, cancel, or modify anything yet. First call GET /users/me, then
 GET /event_types using my organization URI from that response. Then list the
-operations you found and wait for my instruction.
+operations you found and wait for my instruction. When I later ask you to book,
+confirm the slot and invitee with me first, and never retry POST /invitees
+blindly because it is not idempotent.
 ```
 
 The curated spec exposes:
@@ -148,10 +157,13 @@ The curated spec exposes:
 | `GET /event_type_memberships` | hosts for an event type |
 | `GET /scheduled_events`, `GET /scheduled_events/{uuid}` | upcoming meetings |
 | `GET /scheduled_events/{uuid}/invitees` | meeting attendees |
+| `POST /invitees` | book a meeting (paid plan; not idempotent) |
+| `POST /scheduled_events/{uuid}/cancellation` | cancel a meeting (destructive) |
+| `POST /scheduling_links`, `POST /shares` | single-use / customized links |
 | `GET /locations`, availability, busy times | scheduling context |
 
-Everything else (booking, cancellation, links, contacts, organizations, notetaker, routing, data compliance,
-webhooks) is excluded on purpose.
+Everything else (contacts, organizations, notetaker, routing forms, data
+compliance, webhooks) is excluded on purpose.
 
 ---
 
@@ -160,8 +172,10 @@ webhooks) is excluded on purpose.
 - Keep Muse approvals on **"Ask for some actions"** or **"Always ask"**. Booking
   and cancellation are writes; leave them gated.
 - Never paste the PAT into chat. Use the secure credential prompt only.
-- The direct PAT spec is read-only. The bridge owns booking and supplies
-  idempotency, audit, and rate-limit controls for writes.
+- The direct PAT spec now exposes writes, but with **no server-side
+  idempotency**. `POST /invitees` is not idempotent, so a retried booking creates
+  a duplicate meeting. Have Muse check `GET /scheduled_events` before rebooking.
+  The Phase 2 bridge is the safer path for writes if you need dedupe and audit.
 - Calendly create-invitee limits: 10/min, 50/hr, 100/day (paid non-enterprise).
 - Refresh tokens are irrelevant for PATs, but PATs can be revoked; the smoke test
   is your revocation check.
